@@ -11,7 +11,7 @@ eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml
     
 def drowsiness_detection(model_path, alarm_sound='alarm.wav'):
     
-    model = load_model(os.path.join("models", "model.h5"))
+    model = load_model(os.path.join("models", "model_test.h5"))
 
 
     lbl=['Close', 'Open']
