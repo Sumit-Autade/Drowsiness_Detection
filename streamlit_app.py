@@ -11,7 +11,7 @@ import av
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
 
-model = load_model(os.path.join("models", "model.h5"))
+model = load_model(os.path.join("models", "model_test.h5"))
 lbl = ['Close', 'Open']
 
 class VideoProcessor:
