@@ -1,90 +1,63 @@
+# streamlit_app.py
+
 import cv2
 import os
 from tensorflow.keras.models import load_model
 import numpy as np
 import streamlit as st
-
-
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+import av
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
-    
-def drowsiness_detection(model_path, alarm_sound='alarm.wav'):
-    
-    model = load_model(os.path.join("models", "model_test.h5"))
 
+model = load_model(os.path.join("models", "model.h5"))
+lbl = ['Close', 'Open']
 
-    lbl=['Close', 'Open']
+class VideoProcessor:
+    def recv(self, frame):
+        frm = frame.to_ndarray(format="bgr24")
 
-    path = os.getcwd()
-    cap = cv2.VideoCapture(0)
-    font = cv2.FONT_HERSHEY_COMPLEX_SMALL
-    score = 0
+        gray = cv2.cvtColor(frm, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, minNeighbors=3, scaleFactor=1.1, minSize=(25, 25))
+        eyes = eye_cascade.detectMultiScale(gray, minNeighbors=1, scaleFactor=1.1)
 
-    while(True):
-        ret, frame = cap.read()
-        height,width = frame.shape[:2]
+        cv2.rectangle(frm, (0, frm.shape[0] - 50), (200, frm.shape[0]), (0, 0, 0), thickness=cv2.FILLED)
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frm, (x, y), (x + w, y + h), (255, 0, 0), 3)
 
-        faces = face_cascade.detectMultiScale(gray,minNeighbors = 3,scaleFactor = 1.1,minSize=(25,25))
-        eyes = eye_cascade.detectMultiScale(gray,minNeighbors = 1,scaleFactor = 1.1)
-
-        cv2.rectangle(frame, (0,height-50) , (200,height) , (0,0,0) , thickness=cv2.FILLED )
-
-        for (x,y,w,h) in faces:
-            cv2.rectangle(frame, (x,y) , (x+w,y+h) , (255,0,0) , 3 )
-
-        for (x,y,w,h) in eyes:
-
-            eye = frame[y:y+h,x:x+w]
-            #eye = cv2.cvtColor(eye,cv2.COLOR_BGR2GRAY)
-            eye = cv2.resize(eye,(80,80))
-            eye = eye/255
-            eye = eye.reshape(80,80,3)
-            eye = np.expand_dims(eye,axis=0)
+        for (x, y, w, h) in eyes:
+            eye = frm[y:y + h, x:x + w]
+            eye = cv2.resize(eye, (80, 80))
+            eye = eye / 255
+            eye = eye.reshape(80, 80, 3)
+            eye = np.expand_dims(eye, axis=0)
             prediction = model.predict(eye)
-            # print(prediction)
-        #Condition for Close
-            if prediction[0][0]>0.30:
-                cv2.putText(frame,"Closed",(10,height-20), font, 1,(255,255,255),1,cv2.LINE_AA)
-                cv2.putText(frame,'Score:'+str(score),(100,height-20), font, 1,(255,255,255),1,cv2.LINE_AA)
-                score=score+1
-                #print("Close Eyes")
-                if(score > 20):
-                    try:
-                        sound.play()
-                    except:  # isplaying = False
-                        pass
 
-            #Condition for Open
+            if prediction[0][0] > 0.30:
+                cv2.putText(frm, "Closed", (10, frm.shape[0] - 20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1,
+                            (255, 255, 255), 1, cv2.LINE_AA)
             elif prediction[0][1] > 0.70:
-                score = score - 1
-                if (score < 0):
-                    score = 0
-                cv2.putText(frame,"Open",(10,height-20), font, 1,(255,255,255),1,cv2.LINE_AA)
-                #print("Open Eyes")
-                cv2.putText(frame,'Score:'+str(score),(100,height-20), font, 1,(255,255,255),1,cv2.LINE_AA)
+                cv2.putText(frm, "Open", (10, frm.shape[0] - 20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255), 1,
+                            cv2.LINE_AA)
 
-        cv2.imshow('frame',frame)
-    
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        
-    cap.release()
-    cv2.destroyAllWindows()
-
+        return av.VideoFrame.from_ndarray(frm, format='bgr24')
 
 # Streamlit app
 def main():
-    st.title("Drowsiness_Detection")
-    
-    # Click the button to start the webcam
-    if st.button("Start Webcam"):
-        drowsiness_detection(model_path = os.path.join('models', 'model.h5'))
-        
+    st.title("Drowsiness Detection with Webcam")
+
+    rtc_configuration = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}], "audio": False}
+    )
+
+    webrtc_streamer(
+        key="example",
+        video_processor_factory=VideoProcessor,
+        rtc_configuration=rtc_configuration,
+    )
 
 # Run the Streamlit app
-# Use streamlit run main.py command in terminal 
 if __name__ == '__main__':
     main()
